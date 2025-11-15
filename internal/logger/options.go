@@ -1,7 +1,7 @@
 package logger
 
 type Options struct {
-    Filename   string
-    Level      string
-    ToConsole  bool
+	Filename  string
+	Level     string
+	ToConsole bool
 }

@@ -42,6 +42,7 @@ func mustGetEnv(key string) string {
 	if v == "" {
 		log.Fatalf("missing required env var %s", key)
 	}
+
 	return v
 }
 
@@ -51,6 +52,7 @@ func mustGetEnvBool(key string) bool {
 	if err != nil {
 		log.Fatalf("invalid boolean for %s: %v", key, err)
 	}
+
 	return b
 }
 
@@ -60,6 +62,7 @@ func mustGetEnvInt(key string) int {
 	if err != nil {
 		log.Fatalf("invalid integer for %s: %v", key, err)
 	}
+
 	return i
 }
 

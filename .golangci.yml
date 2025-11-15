@@ -1,0 +1,43 @@
+version: "2"
+
+run:
+  timeout: 3m
+  tests: true
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - gosec
+    - wsl
+
+linters-settings:
+  revive:
+    rules:
+      - name: indent-error-flow
+      - name: early-return
+      - name: var-naming
+      - name: exported
+      - name: error-return
+      - name: unreachable-code
+      - name: line-length-limit
+        arguments: [120]
+
+  gosec:
+    excludes:
+      - G204
+
+formatters:
+  settings:
+    gofumpt:
+      extra-rules: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck

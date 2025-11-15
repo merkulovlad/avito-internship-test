@@ -18,7 +18,6 @@ func NewManager(db *sql.DB) *Manager {
 
 func (m *Manager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
 	if _, ok := TxFromContext(ctx); ok {
-		// уже в транзакции — просто выполняем
 		return fn(ctx)
 	}
 
@@ -33,6 +32,7 @@ func (m *Manager) Do(ctx context.Context, fn func(ctx context.Context) error) er
 		if rbErr := tx.Rollback(); rbErr != nil {
 			return fmt.Errorf("rollback failed: %v (original: %w)", rbErr, err)
 		}
+
 		return err
 	}
 

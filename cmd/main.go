@@ -1,8 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
-	
+
 	"github.com/merkulovlad/avito-internship-test/internal/config"
 	"github.com/merkulovlad/avito-internship-test/internal/logger"
 )
@@ -10,13 +11,18 @@ import (
 func main() {
 	cfg := config.MustLoad()
 	options := &logger.Options{
-		Level:      cfg.Log.Level,
-		ToConsole:  cfg.Log.ToConsole,
-		Filename:   cfg.Log.Filename,
+		Level:     cfg.Log.Level,
+		ToConsole: cfg.Log.ToConsole,
+		Filename:  cfg.Log.Filename,
 	}
 	logger, err := logger.NewLogger(options)
 	if err != nil {
 		log.Fatalf("Error initializing logger: %v", err)
 	}
-	defer logger.Sync()
+
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			fmt.Printf("failed to sync logger: %v\n", err)
+		}
+	}()
 }

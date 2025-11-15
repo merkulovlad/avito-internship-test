@@ -14,3 +14,7 @@ type Executor interface {
 type ManagerInterface interface {
 	Do(ctx context.Context, fn func(ctx context.Context) error) error
 }
+
+type ExecutorProvider interface {
+	DefaultTxOrDB(ctx context.Context) Executor
+}

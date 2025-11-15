@@ -15,11 +15,11 @@ type Logger struct {
 var _ InterfaceLogger = (*Logger)(nil)
 
 func NewLogger(opts *Options) (*Logger, error) {
-	if err := os.MkdirAll("logs", 0755); err != nil {
+	if err := os.MkdirAll("logs", 0o750); err != nil {
 		return nil, err
 	}
 
-	logFile, err := os.OpenFile(opts.Filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	logFile, err := os.OpenFile(opts.Filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, err
 	}
