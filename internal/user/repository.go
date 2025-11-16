@@ -3,11 +3,13 @@ package user
 import (
 	"context"
 	"database/sql"
-	"errors"
 
 	"github.com/merkulovlad/avito-internship-test/internal/domain"
 	"github.com/merkulovlad/avito-internship-test/internal/tx"
 )
+
+// Compile-time interface check
+var _ domain.UserRepositoryInterface = (*UserRepository)(nil)
 
 // UserRepository provides methods to manage users
 type UserRepository struct {
@@ -46,10 +48,6 @@ func (r *UserRepository) SetUserIsActive(ctx context.Context, userId domain.User
 
 	var u domain.User
 	if err := row.Scan(&u.ID, &u.Username, &u.TeamName, &u.IsActive); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, domain.ErrNotFound
-		}
-
 		return nil, err
 	}
 
@@ -109,4 +107,35 @@ func (r *UserRepository) GetUserByID(ctx context.Context, userId domain.UserID) 
 	}
 
 	return &u, nil
+}
+
+func (r *UserRepository) GetUsersByTeamName(ctx context.Context, teamName domain.TeamName) ([]domain.User, error) {
+	executor := r.exec.DefaultTxOrDB(ctx)
+
+	rows, err := executor.QueryContext(ctx,
+		`SELECT user_id, username, team_name, is_active 
+		 FROM users
+		 WHERE team_name = $1`,
+		teamName,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []domain.User
+
+	for rows.Next() {
+		var u domain.User
+		if err := rows.Scan(&u.ID, &u.Username, &u.TeamName, &u.IsActive); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
 }

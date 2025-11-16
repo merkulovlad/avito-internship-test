@@ -13,4 +13,3 @@ func UserToApi(u *domain.User) *api.User {
 		IsActive: u.IsActive,
 	}
 }
-

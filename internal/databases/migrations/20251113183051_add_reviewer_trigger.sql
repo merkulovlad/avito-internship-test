@@ -7,7 +7,7 @@ DECLARE
 BEGIN
     SELECT COUNT(*)
     INTO reviewer_count
-    FROM pull_request_reviewers
+    FROM pr_reviewers
     WHERE pull_request_id = NEW.pull_request_id;
 
     IF reviewer_count >= 2 THEN
@@ -20,13 +20,13 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_check_reviewer_limit
-BEFORE INSERT ON pull_request_reviewers
+BEFORE INSERT ON pr_reviewers
 FOR EACH ROW
 EXECUTE FUNCTION check_reviewer_limit();
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TRIGGER trg_check_reviewer_limit ON pull_request_reviewers;
+DROP TRIGGER trg_check_reviewer_limit ON pr_reviewers;
 DROP FUNCTION check_reviewer_limit();
 -- +goose StatementEnd

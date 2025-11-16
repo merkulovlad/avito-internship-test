@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"time"
 
+	_ "github.com/lib/pq"
 	"github.com/merkulovlad/avito-internship-test/internal/config"
 )
 
@@ -20,9 +21,13 @@ func NewDB(cfg *config.DatabaseConfig) (*sql.DB, error) {
 		return nil, err
 	}
 
-	db.SetConnMaxLifetime(time.Duration(cfg.ConnectionTimeout) * time.Second)
+	db.SetConnMaxLifetime(time.Duration(cfg.ConnMaxLifetime) * time.Second)
 	db.SetMaxOpenConns(cfg.MaxConnections)
-	db.SetMaxIdleConns(cfg.MaxConnections / 2)
+	maxIdleConns := cfg.MaxConnections / 2
+	if maxIdleConns < 1 {
+		maxIdleConns = 1
+	}
+	db.SetMaxIdleConns(maxIdleConns)
 
 	return db, nil
 }

@@ -8,6 +8,9 @@ import (
 	"github.com/merkulovlad/avito-internship-test/internal/tx"
 )
 
+// Compile-time interface check
+var _ domain.PullRequestRepositoryInterface = (*PRRepository)(nil)
+
 type PRRepository struct {
 	exec *tx.ExecutorImpl
 }
@@ -20,7 +23,7 @@ func NewPRRepository(db *sql.DB) *PRRepository {
 
 func (r *PRRepository) CreatePr(ctx context.Context, pullRequestId domain.PRID, authorId domain.UserID, title string) error {
 	executor := r.exec.DefaultTxOrDB(ctx)
-	_, err := executor.ExecContext(ctx, "INSERT INTO pull_requests (pull_request_id, user_id, title, created_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP)", pullRequestId, authorId, title)
+	_, err := executor.ExecContext(ctx, "INSERT INTO pull_requests (pull_request_id, author_id, title, created_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP)", pullRequestId, authorId, title)
 
 	return err
 }
@@ -28,9 +31,9 @@ func (r *PRRepository) CreatePr(ctx context.Context, pullRequestId domain.PRID, 
 func (r *PRRepository) AssignReviewer(ctx context.Context, pullRequestId domain.PRID, reviewer domain.UserID) error {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	_, err := executor.ExecContext(ctx,
-		`INSERT INTO pr_reviewers (pull_request_id, reviewer_id)
+		`INSERT INTO pr_reviewers (pull_request_id, user_id)
      VALUES ($1, $2)
-     ON CONFLICT (pull_request_id, reviewer_id) DO NOTHING`,
+     ON CONFLICT (pull_request_id, user_id) DO NOTHING`,
 		pullRequestId, reviewer,
 	)
 
@@ -56,6 +59,30 @@ func (r *PRRepository) MergePr(ctx context.Context, pullRequestId domain.PRID) (
 
 	var pr domain.PullRequest
 	if err := row.Scan(&pr.ID, &pr.Title, &pr.AuthorID, &pr.IsMerged, &pr.MergedAt); err != nil {
+		return nil, err
+	}
+
+	// Fetch assigned reviewers
+	rows, err := executor.QueryContext(ctx, `
+		SELECT user_id
+		FROM pr_reviewers
+		WHERE pull_request_id = $1
+	`, pullRequestId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	pr.AssignedReviewers = []domain.UserID{}
+	for rows.Next() {
+		var reviewerID domain.UserID
+		if err := rows.Scan(&reviewerID); err != nil {
+			return nil, err
+		}
+		pr.AssignedReviewers = append(pr.AssignedReviewers, reviewerID)
+	}
+
+	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -87,7 +114,7 @@ func (r *PRRepository) CheckIsMerged(ctx context.Context, pullRequestId domain.P
 
 func (r *PRRepository) IsReviewerAssigned(ctx context.Context, pullRequestId domain.PRID, reviewId domain.UserID) (bool, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
-	row := executor.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM pr_reviewers WHERE pull_request_id = $1 AND reviewer_id = $2)", pullRequestId, reviewId)
+	row := executor.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM pr_reviewers WHERE pull_request_id = $1 AND user_id = $2)", pullRequestId, reviewId)
 
 	var isAssigned bool
 	if err := row.Scan(&isAssigned); err != nil {
@@ -99,12 +126,12 @@ func (r *PRRepository) IsReviewerAssigned(ctx context.Context, pullRequestId dom
 
 func (r *PRRepository) UnassignReviewer(ctx context.Context, pullRequestId domain.PRID, reviewerId domain.UserID) error {
 	executor := r.exec.DefaultTxOrDB(ctx)
-	_, err := executor.ExecContext(ctx, "DELETE FROM pr_reviewers WHERE pull_request_id = $1 AND reviewer_id = $2", pullRequestId, reviewerId)
+	_, err := executor.ExecContext(ctx, "DELETE FROM pr_reviewers WHERE pull_request_id = $1 AND user_id = $2", pullRequestId, reviewerId)
 
 	return err
 }
 
-func (r *PRRepository) GetPrByID(ctx context.Context, pullRequestId domain.PRID) (*domain.PullRequest, error) {
+func (r *PRRepository) GetPrByPrID(ctx context.Context, pullRequestId domain.PRID) (*domain.PullRequest, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	row := executor.QueryRowContext(ctx, "SELECT pull_request_id, author_id, title, created_at, is_merged, merged_at FROM pull_requests WHERE pull_request_id = $1", pullRequestId)
 
@@ -114,4 +141,62 @@ func (r *PRRepository) GetPrByID(ctx context.Context, pullRequestId domain.PRID)
 	}
 
 	return &pr, nil
+}
+
+func (r *PRRepository) GetPrByUserID(ctx context.Context, userId domain.UserID) ([]domain.PullRequest, error) {
+	executor := r.exec.DefaultTxOrDB(ctx)
+
+	rows, err := executor.QueryContext(ctx,
+		`SELECT pull_request_id, author_id, title, created_at, is_merged, merged_at
+		 FROM pull_requests
+		 WHERE author_id = $1`, userId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var prs []domain.PullRequest
+
+	for rows.Next() {
+		var pr domain.PullRequest
+		if err := rows.Scan(&pr.ID, &pr.AuthorID, &pr.Title, &pr.CreatedAt, &pr.IsMerged, &pr.MergedAt); err != nil {
+			return nil, err
+		}
+		prs = append(prs, pr)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return prs, nil
+}
+
+func (r *PRRepository) GetReviewers(ctx context.Context, pullRequestId domain.PRID) ([]domain.UserID, error) {
+	executor := r.exec.DefaultTxOrDB(ctx)
+
+	rows, err := executor.QueryContext(ctx,
+		`SELECT user_id
+		 FROM pr_reviewers
+		 WHERE pull_request_id = $1`, pullRequestId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var reviewerIDs []domain.UserID
+
+	for rows.Next() {
+		var reviewerID domain.UserID
+		if err := rows.Scan(&reviewerID); err != nil {
+			return nil, err
+		}
+		reviewerIDs = append(reviewerIDs, reviewerID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return reviewerIDs, nil
 }

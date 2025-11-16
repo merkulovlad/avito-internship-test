@@ -35,6 +35,7 @@ type DatabaseConfig struct {
 	SSLMode           string
 	MaxConnections    int
 	ConnectionTimeout int
+	ConnMaxLifetime   int
 }
 
 func mustGetEnv(key string) string {
@@ -89,6 +90,7 @@ func MustLoad() *Config {
 			SSLMode:           mustGetEnv("POSTGRES_SSLMODE"),
 			MaxConnections:    mustGetEnvInt("POSTGRES_MAX_CONNECTIONS"),
 			ConnectionTimeout: mustGetEnvInt("POSTGRES_CONNECTION_TIMEOUT"),
+			ConnMaxLifetime:   mustGetEnvInt("POSTGRES_CONN_MAX_LIFETIME"),
 		},
 	}
 }

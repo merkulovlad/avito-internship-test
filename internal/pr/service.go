@@ -2,8 +2,8 @@ package pr
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
-	"math/rand"
 	"time"
 
 	"github.com/merkulovlad/avito-internship-test/internal/domain"
@@ -11,11 +11,16 @@ import (
 	"github.com/merkulovlad/avito-internship-test/internal/user"
 )
 
+const MaxReviewersPerPr = 2
+
+// Compile-time interface check
+var _ domain.PRServiceInterface = (*PRService)(nil)
+
 // PRService provides methods to manage pull requests.
 
 type PRService struct {
-	prRepo    *PRRepository
-	userRepo  *user.UserRepository
+	prRepo    domain.PullRequestRepositoryInterface
+	userRepo  domain.UserRepositoryInterface
 	txManager *tx.Manager
 }
 
@@ -30,7 +35,7 @@ func NewPRService(db *sql.DB) *PRService {
 func (s *PRService) CreatePr(
 	ctx context.Context,
 	pullRequestId domain.PRID,
-	author *domain.User,
+	authorID domain.UserID,
 	title string,
 ) (*domain.PullRequest, error) {
 	var result *domain.PullRequest
@@ -44,7 +49,11 @@ func (s *PRService) CreatePr(
 		if exists {
 			return domain.ErrPrAlreadyExists
 		}
-
+		// Get author info
+		author, err := s.userRepo.GetUserByID(txCtx, authorID)
+		if err != nil {
+			return err
+		}
 		// 2. Create PR
 		if err := s.prRepo.CreatePr(txCtx, pullRequestId, author.ID, title); err != nil {
 			return err
@@ -66,7 +75,7 @@ func (s *PRService) CreatePr(
 		}
 
 		// 5. Pick up to 2 reviewers
-		selected := pickReviewers(candidates, 2)
+		selected := pickReviewers(candidates, MaxReviewersPerPr)
 
 		// 6. Save reviewers to the pr_reviewers table (if any selected)
 		if len(selected) > 0 {
@@ -82,7 +91,7 @@ func (s *PRService) CreatePr(
 			ID:                domain.PRID(pullRequestId),
 			AuthorID:          author.ID,
 			Title:             title,
-			CreatedAt:         time.Now(),
+			CreatedAt:         time.Now().UTC(),
 			IsMerged:          false,
 			AssignedReviewers: selected,
 			MergedAt:          nil,
@@ -105,26 +114,47 @@ func pickReviewers(candidates []domain.UserID, max int) []domain.UserID {
 		return candidates
 	}
 
-	rand.Shuffle(len(candidates), func(i, j int) {
+	// Shuffle candidates using Fisher-Yates algorithm with crypto/rand
+	b := make([]byte, len(candidates))
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to first N candidates if crypto/rand fails
+		// This should rarely happen, but we handle it gracefully
+		return candidates[:max]
+	}
+
+	for i := range candidates {
+		j := int(b[i]) % len(candidates)
 		candidates[i], candidates[j] = candidates[j], candidates[i]
-	})
+	}
 
 	return candidates[:max]
 }
 
 func (s *PRService) MergePr(ctx context.Context, pullRequestId domain.PRID) (*domain.PullRequest, error) {
-	if res, err := s.prRepo.Exists(ctx, pullRequestId); err != nil {
-		return nil, err
-	} else if !res {
-		return nil, domain.ErrNotFound
-	}
+	var result *domain.PullRequest
 
-	pullReq, err := s.prRepo.MergePr(ctx, pullRequestId)
+	err := s.txManager.Do(ctx, func(txCtx context.Context) error {
+		exists, err := s.prRepo.Exists(txCtx, pullRequestId)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return domain.ErrNotFound
+		}
+
+		pullReq, err := s.prRepo.MergePr(txCtx, pullRequestId)
+		if err != nil {
+			return err
+		}
+
+		result = pullReq
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	return pullReq, nil
+	return result, nil
 }
 
 func (s *PRService) ReassignReviewer(ctx context.Context, pullRequestId domain.PRID, oldReviewerId domain.UserID) (*domain.ReassignResult, error) {
@@ -167,7 +197,7 @@ func (s *PRService) ReassignReviewer(ctx context.Context, pullRequestId domain.P
 	// 4. Транзакция: вся модификация состояния
 	err = s.txManager.Do(ctx, func(txCtx context.Context) error {
 		// 4.1. Получаем PR
-		pr, err := s.prRepo.GetPrByID(txCtx, pullRequestId)
+		pr, err := s.prRepo.GetPrByPrID(txCtx, pullRequestId)
 		if err != nil {
 			return err
 		}
@@ -233,4 +263,31 @@ func (s *PRService) ReassignReviewer(ctx context.Context, pullRequestId domain.P
 		PR:         updatedPR,
 		ReplacedBy: newReviewerID,
 	}, nil
+}
+
+func (s *PRService) GetReviewers(ctx context.Context, pullRequestId domain.PRID) ([]domain.User, error) {
+	// Check if PR exists first
+	exists, err := s.prRepo.Exists(ctx, pullRequestId)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, domain.ErrNotFound
+	}
+
+	reviewerIds, err := s.prRepo.GetReviewers(ctx, pullRequestId)
+	if err != nil {
+		return nil, err
+	}
+
+	var reviewers []domain.User
+	for _, uid := range reviewerIds {
+		user, err := s.userRepo.GetUserByID(ctx, uid)
+		if err != nil {
+			return nil, err
+		}
+		reviewers = append(reviewers, *user)
+	}
+
+	return reviewers, nil
 }

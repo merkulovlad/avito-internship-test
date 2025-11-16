@@ -8,6 +8,9 @@ import (
 	"github.com/merkulovlad/avito-internship-test/internal/tx"
 )
 
+// Compile-time interface check
+var _ domain.TeamRepositoryInterface = (*TeamRepository)(nil)
+
 type TeamRepository struct {
 	exec *tx.ExecutorImpl
 }
@@ -18,9 +21,9 @@ func NewTeamRepository(db *sql.DB) *TeamRepository {
 	}
 }
 
-func (r *TeamRepository) CreateTeam(ctx context.Context, t domain.Team) error {
+func (r *TeamRepository) CreateTeam(ctx context.Context, t domain.TeamName) error {
 	executor := r.exec.DefaultTxOrDB(ctx)
-	_, err := executor.ExecContext(ctx, "INSERT INTO teams (team_name) VALUES ($1)", t.Name)
+	_, err := executor.ExecContext(ctx, "INSERT INTO teams (team_name) VALUES ($1)", t)
 
 	return err
 }
