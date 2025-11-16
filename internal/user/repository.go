@@ -109,6 +109,44 @@ func (r *UserRepository) GetUserByID(ctx context.Context, userId domain.UserID) 
 	return &u, nil
 }
 
+func (r *UserRepository) GetUsersByIDs(ctx context.Context, userIds []domain.UserID) ([]domain.User, error) {
+	if len(userIds) == 0 {
+		return []domain.User{}, nil
+	}
+
+	executor := r.exec.DefaultTxOrDB(ctx)
+
+	// Build the query with proper placeholders
+	query := `SELECT user_id, username, team_name, is_active FROM users WHERE user_id = ANY($1)`
+
+	// Convert []UserID to []string for the ANY clause
+	ids := make([]string, len(userIds))
+	for i, id := range userIds {
+		ids[i] = string(id)
+	}
+
+	rows, err := executor.QueryContext(ctx, query, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []domain.User
+	for rows.Next() {
+		var u domain.User
+		if err := rows.Scan(&u.ID, &u.Username, &u.TeamName, &u.IsActive); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
 func (r *UserRepository) GetUsersByTeamName(ctx context.Context, teamName domain.TeamName) ([]domain.User, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 

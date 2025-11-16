@@ -147,9 +147,10 @@ func (r *PRRepository) GetPrByUserID(ctx context.Context, userId domain.UserID) 
 	executor := r.exec.DefaultTxOrDB(ctx)
 
 	rows, err := executor.QueryContext(ctx,
-		`SELECT pull_request_id, author_id, title, created_at, is_merged, merged_at
-		 FROM pull_requests
-		 WHERE author_id = $1`, userId)
+		`SELECT pr.pull_request_id, pr.author_id, pr.title, pr.created_at, pr.is_merged, pr.merged_at
+		 FROM pull_requests pr
+		 JOIN pr_reviewers rev ON pr.pull_request_id = rev.pull_request_id
+		 WHERE rev.user_id = $1`, userId)
 	if err != nil {
 		return nil, err
 	}

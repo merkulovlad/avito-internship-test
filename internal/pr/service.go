@@ -119,6 +119,7 @@ func pickReviewers(candidates []domain.UserID, max int) []domain.UserID {
 	if _, err := rand.Read(b); err != nil {
 		// Fallback to first N candidates if crypto/rand fails
 		// This should rarely happen, but we handle it gracefully
+		// We know len(candidates) > max at this point (checked above)
 		return candidates[:max]
 	}
 
@@ -203,13 +204,13 @@ func (s *PRService) ReassignReviewer(ctx context.Context, pullRequestId domain.P
 		}
 
 		// 4.2. Автор
-		author, err := s.userRepo.GetUserByID(txCtx, pr.AuthorID)
+		oldReviewer, err := s.userRepo.GetUserByID(txCtx, oldReviewerId)
 		if err != nil {
 			return err
 		}
 
 		// 4.3. Активные юзеры команды
-		activeUsers, err := s.userRepo.GetActiveUsersByTeam(txCtx, author.TeamName)
+		activeUsers, err := s.userRepo.GetActiveUsersByTeam(txCtx, oldReviewer.TeamName)
 		if err != nil {
 			return err
 		}
@@ -218,7 +219,7 @@ func (s *PRService) ReassignReviewer(ctx context.Context, pullRequestId domain.P
 		candidates := make([]domain.UserID, 0, len(activeUsers))
 		for _, u := range activeUsers {
 			id := u
-			if id == author.ID || id == oldReviewerId {
+			if id == oldReviewer.ID || id == pr.AuthorID {
 				continue
 			}
 			candidates = append(candidates, id)
@@ -280,13 +281,9 @@ func (s *PRService) GetReviewers(ctx context.Context, pullRequestId domain.PRID)
 		return nil, err
 	}
 
-	var reviewers []domain.User
-	for _, uid := range reviewerIds {
-		user, err := s.userRepo.GetUserByID(ctx, uid)
-		if err != nil {
-			return nil, err
-		}
-		reviewers = append(reviewers, *user)
+	reviewers, err := s.userRepo.GetUsersByIDs(ctx, reviewerIds)
+	if err != nil {
+		return nil, err
 	}
 
 	return reviewers, nil

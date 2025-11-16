@@ -33,6 +33,7 @@ type PR struct {
 	AuthorId          string                     `json:"author_id"`
 	Status            api.PullRequestShortStatus `json:"status"`
 	AssignedReviewers []string                   `json:"assigned_reviewers"`
+	CreatedAt         *string                    `json:"createdAt,omitempty"`
 	MergedAt          *string                    `json:"mergedAt,omitempty"`
 }
 
@@ -41,6 +42,6 @@ type PostPullRequestMergeResponse struct {
 }
 
 type PostPullRequestReassignResponse struct {
-	PR         api.PullRequestShort `json:"pr"`
-	ReplacedBy string               `json:"replaced_by"`
+	PR         PR     `json:"pr"`
+	ReplacedBy string `json:"replaced_by"`
 }

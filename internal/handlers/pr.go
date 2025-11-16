@@ -41,12 +41,31 @@ func (h *PRHandler) ReassignReviewer(c *fiber.Ctx) error {
 		return writeError(c, fiber.StatusInternalServerError, ErrorCodeInternal, "internal server error")
 	}
 
+	assigned := make([]string, len(updatedPR.PR.AssignedReviewers))
+	for i, id := range updatedPR.PR.AssignedReviewers {
+		assigned[i] = string(id)
+	}
+
+	var mergedAt *string
+	if updatedPR.PR.MergedAt != nil {
+		str := updatedPR.PR.MergedAt.Format("2006-01-02T15:04:05Z07:00")
+		mergedAt = &str
+	}
+	var createdAt *string
+	if !updatedPR.PR.CreatedAt.IsZero() {
+		str := updatedPR.PR.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+		createdAt = &str
+	}
+
 	res := &PostPullRequestReassignResponse{
-		PR: api.PullRequestShort{
-			PullRequestId:   string(updatedPR.PR.ID),
-			PullRequestName: updatedPR.PR.Title,
-			AuthorId:        string(updatedPR.PR.AuthorID),
-			Status:          BoolToStatus(updatedPR.PR.IsMerged),
+		PR: PR{
+			PullRequestId:     string(updatedPR.PR.ID),
+			PullRequestName:   updatedPR.PR.Title,
+			AuthorId:          string(updatedPR.PR.AuthorID),
+			Status:            BoolToStatus(updatedPR.PR.IsMerged),
+			AssignedReviewers: assigned,
+			CreatedAt:         createdAt,
+			MergedAt:          mergedAt,
 		},
 		ReplacedBy: string(updatedPR.ReplacedBy),
 	}

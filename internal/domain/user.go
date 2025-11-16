@@ -11,6 +11,7 @@ type UserRepositoryInterface interface {
 	GetActiveUsersByTeam(ctx context.Context, teamName TeamName) ([]UserID, error)
 	Exists(ctx context.Context, userId UserID) (bool, error)
 	GetUserByID(ctx context.Context, userId UserID) (*User, error)
+	GetUsersByIDs(ctx context.Context, userIds []UserID) ([]User, error)
 	GetUsersByTeamName(ctx context.Context, teamName TeamName) ([]User, error)
 }
 

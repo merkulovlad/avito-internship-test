@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/merkulovlad/avito-internship-test/internal/api"
 	"github.com/merkulovlad/avito-internship-test/internal/domain"
@@ -30,30 +32,40 @@ func (h *UserHandler) SetUserIsActive(c *fiber.Ctx) error {
 		return writeError(c, fiber.StatusInternalServerError, ErrorCodeInternal, "internal server error")
 
 	}
-	res := api.User{
-		UserId:   string(user.ID),
-		Username: user.Username,
-		TeamName: string(user.TeamName),
-		IsActive: user.IsActive,
+	res := map[string]interface{}{
+		"user": api.User{
+			UserId:   string(user.ID),
+			Username: user.Username,
+			TeamName: string(user.TeamName),
+			IsActive: user.IsActive,
+		},
 	}
 	return c.Status(fiber.StatusOK).JSON(res)
 }
 
 func (h *UserHandler) GetPrOfUser(c *fiber.Ctx) error {
-	userId := c.Params("userId")
+	userId := c.Query("user_id")
 	prs, err := h.service.GetPrOfUser(c.Context(), domain.UserID(userId))
+	if errors.Is(err, domain.ErrNotFound) {
+		return writeError(c, fiber.StatusNotFound, domain.ErrNotFound.Code, "user not found")
+	}
 	if err != nil {
 		return writeError(c, fiber.StatusInternalServerError, ErrorCodeInternal, "internal server error")
 	}
 
-	var res []api.PullRequestShort
+	var pullRequests []api.PullRequestShort
 	for _, pr := range prs {
-		res = append(res, api.PullRequestShort{
+		pullRequests = append(pullRequests, api.PullRequestShort{
 			PullRequestId:   string(pr.ID),
 			PullRequestName: pr.Title,
 			AuthorId:        string(pr.AuthorID),
 			Status:          BoolToStatus(pr.IsMerged),
 		})
+	}
+
+	res := map[string]interface{}{
+		"user_id":       userId,
+		"pull_requests": pullRequests,
 	}
 	return c.Status(fiber.StatusOK).JSON(res)
 }

@@ -27,11 +27,17 @@ func PullRequestDomainToApi(pr *domain.PullRequest, reviewers []domain.User) *PR
 		str := pr.MergedAt.Format("2006-01-02T15:04:05Z07:00")
 		mergedAt = &str
 	}
+	var createdAt *string
+	if !pr.CreatedAt.IsZero() {
+		str := pr.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+		createdAt = &str
+	}
 	return &PR{
 		PullRequestId:     string(pr.ID),
 		PullRequestName:   pr.Title,
 		AuthorId:          string(pr.AuthorID),
 		Status:            BoolToStatus(pr.IsMerged),
+		CreatedAt:         createdAt,
 		MergedAt:          mergedAt,
 		AssignedReviewers: sliceOfUsersToStr(reviewers),
 	}
