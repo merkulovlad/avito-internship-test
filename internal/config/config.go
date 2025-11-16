@@ -49,6 +49,7 @@ func mustGetEnv(key string) string {
 
 func mustGetEnvBool(key string) bool {
 	s := mustGetEnv(key)
+
 	b, err := strconv.ParseBool(s)
 	if err != nil {
 		log.Fatalf("invalid boolean for %s: %v", key, err)
@@ -59,6 +60,7 @@ func mustGetEnvBool(key string) bool {
 
 func mustGetEnvInt(key string) int {
 	s := mustGetEnv(key)
+
 	i, err := strconv.Atoi(s)
 	if err != nil {
 		log.Fatalf("invalid integer for %s: %v", key, err)

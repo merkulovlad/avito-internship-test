@@ -10,6 +10,7 @@ func BoolToStatus(isMerged bool) api.PullRequestShortStatus {
 	if isMerged {
 		return api.PullRequestShortStatusMERGED
 	}
+
 	return api.PullRequestShortStatusOPEN
 }
 
@@ -23,15 +24,19 @@ func writeError(c *fiber.Ctx, status int, code api.ErrorResponseErrorCode, msg s
 
 func PullRequestDomainToApi(pr *domain.PullRequest, reviewers []domain.User) *PR {
 	var mergedAt *string
+
 	if pr.MergedAt != nil {
 		str := pr.MergedAt.Format("2006-01-02T15:04:05Z07:00")
 		mergedAt = &str
 	}
+
 	var createdAt *string
+
 	if !pr.CreatedAt.IsZero() {
 		str := pr.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
 		createdAt = &str
 	}
+
 	return &PR{
 		PullRequestId:     string(pr.ID),
 		PullRequestName:   pr.Title,
@@ -48,5 +53,6 @@ func sliceOfUsersToStr(users []domain.User) []string {
 	for _, r := range users {
 		ids = append(ids, string(r.ID))
 	}
+
 	return ids
 }

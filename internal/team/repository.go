@@ -34,6 +34,10 @@ func (r *TeamRepository) GetTeamByName(ctx context.Context, name domain.TeamName
 
 	var t domain.Team
 	if err := row.Scan(&t.Name); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, domain.ErrNotFound
+		}
+
 		return nil, err
 	}
 

@@ -1,0 +1,68 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: avito-internship-backend-service-test
+    ports:
+      - "8080:8080"
+    environment:
+      - BACKEND_HOST=0.0.0.0
+      - BACKEND_PORT=8080
+      - LOG_FILE=/app/app.log
+      - LOG_LEVEL=info
+      - LOG_TO_CONSOLE=true
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=avito-internship-test
+      - POSTGRES_SSLMODE=disable
+      - POSTGRES_MAX_CONNECTIONS=5
+      - POSTGRES_CONNECTION_TIMEOUT=1000
+      - POSTGRES_CONN_MAX_LIFETIME=3600
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - avito-internship-network
+    healthcheck:
+      # Adjust path if your health route differs
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: avito-internship-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=avito-internship-test
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - avito-internship-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d avito-internship-test -h localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+
+volumes:
+  postgres_data:
+
+networks:
+  avito-internship-network:
+    driver: bridge

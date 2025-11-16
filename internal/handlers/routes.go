@@ -3,6 +3,7 @@ package handlers
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/merkulovlad/avito-internship-test/internal/domain"
+	"github.com/merkulovlad/avito-internship-test/internal/logger"
 )
 
 // RegisterRoutes registers all HTTP routes for the application
@@ -11,11 +12,15 @@ func RegisterRoutes(
 	userService domain.UserServiceInterface,
 	teamService domain.TeamServiceInterface,
 	prService domain.PRServiceInterface,
+	logger logger.InterfaceLogger,
 ) {
 	// Initialize handlers
-	userHandler := NewUserHandler(userService)
-	teamHandler := NewTeamHandler(teamService)
-	prHandler := NewPRHandler(prService)
+	userHandler := NewUserHandler(userService, logger)
+	teamHandler := NewTeamHandler(teamService, logger)
+	prHandler := NewPRHandler(prService, logger)
+
+	// Health check
+	app.Get("/healthz", HealthCheck)
 
 	// Team routes
 	app.Post("/team/add", teamHandler.CreateTeam)

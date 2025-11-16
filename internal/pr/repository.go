@@ -71,14 +71,21 @@ func (r *PRRepository) MergePr(ctx context.Context, pullRequestId domain.PRID) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	pr.AssignedReviewers = []domain.UserID{}
+
 	for rows.Next() {
 		var reviewerID domain.UserID
 		if err := rows.Scan(&reviewerID); err != nil {
 			return nil, err
 		}
+
 		pr.AssignedReviewers = append(pr.AssignedReviewers, reviewerID)
 	}
 
@@ -109,6 +116,7 @@ func (r *PRRepository) CheckIsMerged(ctx context.Context, pullRequestId domain.P
 	if err := row.Scan(&isMerged); err != nil {
 		return false, err
 	}
+
 	return isMerged, nil
 }
 
@@ -154,7 +162,12 @@ func (r *PRRepository) GetPrByUserID(ctx context.Context, userId domain.UserID) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	var prs []domain.PullRequest
 
@@ -163,6 +176,7 @@ func (r *PRRepository) GetPrByUserID(ctx context.Context, userId domain.UserID) 
 		if err := rows.Scan(&pr.ID, &pr.AuthorID, &pr.Title, &pr.CreatedAt, &pr.IsMerged, &pr.MergedAt); err != nil {
 			return nil, err
 		}
+
 		prs = append(prs, pr)
 	}
 
@@ -183,7 +197,12 @@ func (r *PRRepository) GetReviewers(ctx context.Context, pullRequestId domain.PR
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	var reviewerIDs []domain.UserID
 
@@ -192,6 +211,7 @@ func (r *PRRepository) GetReviewers(ctx context.Context, pullRequestId domain.PR
 		if err := rows.Scan(&reviewerID); err != nil {
 			return nil, err
 		}
+
 		reviewerIDs = append(reviewerIDs, reviewerID)
 	}
 

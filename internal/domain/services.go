@@ -17,8 +17,8 @@ type TeamServiceInterface interface {
 
 // PRServiceInterface defines methods for pull request business logic
 type PRServiceInterface interface {
-	CreatePr(ctx context.Context, pullRequestId PRID, authorID UserID, title string) (*PullRequest, error)
-	MergePr(ctx context.Context, pullRequestId PRID) (*PullRequest, error)
+	CreatePr(ctx context.Context, pullRequestId PRID, authorID UserID, title string) (*PullRequest, []User, error)
+	MergePr(ctx context.Context, pullRequestId PRID) (*PullRequest, []User, error)
 	ReassignReviewer(ctx context.Context, pullRequestId PRID, oldReviewerId UserID) (*ReassignResult, error)
 	GetReviewers(ctx context.Context, pullRequestId PRID) ([]User, error)
 }

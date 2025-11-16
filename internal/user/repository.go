@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/lib/pq"
 	"github.com/merkulovlad/avito-internship-test/internal/domain"
 	"github.com/merkulovlad/avito-internship-test/internal/tx"
 )
@@ -66,7 +67,12 @@ func (r *UserRepository) GetActiveUsersByTeam(ctx context.Context, teamName doma
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	var userIDs []domain.UserID
 
@@ -75,6 +81,7 @@ func (r *UserRepository) GetActiveUsersByTeam(ctx context.Context, teamName doma
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
+
 		userIDs = append(userIDs, id)
 	}
 
@@ -103,6 +110,10 @@ func (r *UserRepository) GetUserByID(ctx context.Context, userId domain.UserID) 
 
 	var u domain.User
 	if err := row.Scan(&u.ID, &u.Username, &u.TeamName, &u.IsActive); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, domain.ErrNotFound
+		}
+
 		return nil, err
 	}
 
@@ -125,18 +136,25 @@ func (r *UserRepository) GetUsersByIDs(ctx context.Context, userIds []domain.Use
 		ids[i] = string(id)
 	}
 
-	rows, err := executor.QueryContext(ctx, query, ids)
+	rows, err := executor.QueryContext(ctx, query, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	var users []domain.User
+
 	for rows.Next() {
 		var u domain.User
 		if err := rows.Scan(&u.ID, &u.Username, &u.TeamName, &u.IsActive); err != nil {
 			return nil, err
 		}
+
 		users = append(users, u)
 	}
 
@@ -159,7 +177,12 @@ func (r *UserRepository) GetUsersByTeamName(ctx context.Context, teamName domain
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	var users []domain.User
 
@@ -168,6 +191,7 @@ func (r *UserRepository) GetUsersByTeamName(ctx context.Context, teamName domain
 		if err := rows.Scan(&u.ID, &u.Username, &u.TeamName, &u.IsActive); err != nil {
 			return nil, err
 		}
+
 		users = append(users, u)
 	}
 

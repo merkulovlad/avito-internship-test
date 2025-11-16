@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	_ "github.com/lib/pq"
@@ -21,6 +23,57 @@ import (
 	"github.com/merkulovlad/avito-internship-test/internal/user"
 )
 
+func createFiberApp(log logger.InterfaceLogger) *fiber.App {
+	return fiber.New(fiber.Config{
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			code := fiber.StatusInternalServerError
+			if e, ok := err.(*fiber.Error); ok {
+				code = e.Code
+			}
+			log.Errorf("Error: %v", err)
+			return c.Status(code).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		},
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
+		BodyLimit:    4 * 1024 * 1024, // 4MB
+	})
+}
+
+func setupServices(db *sql.DB, log logger.InterfaceLogger) (
+	*user.UserService,
+	*team.TeamService,
+	*pr.PRService,
+) {
+	prRepository := pr.NewPRRepository(db)
+	prService := pr.NewPRService(db, log)
+	teamService := team.NewTeamService(db, log)
+	userService := user.NewUserService(db, prRepository, log)
+
+	return userService, teamService, prService
+}
+
+func runServer(app *fiber.App, addr string, log logger.InterfaceLogger) {
+	log.Infof("Starting server on %s", addr)
+
+	go func() {
+		if err := app.Listen(addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Errorf("Server error: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Info("Shutting down...")
+
+	if err := app.Shutdown(); err != nil {
+		log.Errorf("Error during shutdown: %v", err)
+	}
+}
+
 func main() {
 	cfg := config.MustLoad()
 	options := &logger.Options{
@@ -28,6 +81,7 @@ func main() {
 		ToConsole: cfg.Log.ToConsole,
 		Filename:  cfg.Log.Filename,
 	}
+
 	logger, err := logger.NewLogger(options)
 	if err != nil {
 		log.Fatalf("Error initializing logger: %v", err)
@@ -44,6 +98,7 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Failed to connect to database: %v", err)
 	}
+
 	defer func() {
 		if err := db.Close(); err != nil {
 			logger.Errorf("Failed to close database: %v", err)
@@ -51,45 +106,22 @@ func main() {
 	}()
 
 	logger.Info("Database connected successfully")
+	// Run migrations
+	err = databases.RunMigrations(db)
+	if err != nil {
+		logger.Fatalf("failed to run migrations: %v", err)
+	}
 
 	// Initialize repositories and services
-	prRepository := pr.NewPRRepository(db)
-	prService := pr.NewPRService(db)
-	teamService := team.NewTeamService(db)
-	userService := user.NewUserService(db, prRepository)
+	userService, teamService, prService := setupServices(db, logger)
 
 	// Initialize Fiber app
-	app := fiber.New(fiber.Config{
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			code := fiber.StatusInternalServerError
-			if e, ok := err.(*fiber.Error); ok {
-				code = e.Code
-			}
-			logger.Errorf("Error: %v", err)
-			return c.Status(code).JSON(fiber.Map{
-				"error": err.Error(),
-			})
-		},
-	})
+	app := createFiberApp(logger)
 
 	// Register routes
-	handlers.RegisterRoutes(app, userService, teamService, prService)
+	handlers.RegisterRoutes(app, userService, teamService, prService, logger)
 
 	// Start server
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-	logger.Infof("Starting server on %s", addr)
-
-	go func() {
-		if err := app.Listen(addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Errorf("Server error: %v", err)
-		}
-	}()
-
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-	logger.Info("Shutting down...")
-	if err := app.Shutdown(); err != nil {
-		logger.Errorf("Error during shutdown: %v", err)
-	}
+	runServer(app, addr, logger)
 }
