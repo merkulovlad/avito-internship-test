@@ -483,3 +483,144 @@ func TestPRRepository_GetReviewers(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
+
+func TestPRRepository_GetAssignmentStats(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+
+	defer func() {
+		_ = db.Close()
+	}()
+
+	repo := NewPRRepository(db)
+	ctx := context.Background()
+
+	t.Run("success - with data", func(t *testing.T) {
+		// Mock user assignments query
+		userRows := sqlmock.NewRows([]string{"user_id", "assignments"}).
+			AddRow("user1", 10).
+			AddRow("user2", 5).
+			AddRow("user3", 3)
+
+		mock.ExpectQuery("SELECT user_id, COUNT\\(\\*\\) as assignments FROM pr_reviewers GROUP BY user_id").
+			WillReturnRows(userRows)
+
+		// Mock PR reviewers query
+		prRows := sqlmock.NewRows([]string{"pull_request_id", "reviewers"}).
+			AddRow("pr-1001", 2).
+			AddRow("pr-1002", 1).
+			AddRow("pr-1003", 2)
+
+		mock.ExpectQuery("SELECT pull_request_id, COUNT\\(\\*\\) as reviewers FROM pr_reviewers GROUP BY pull_request_id").
+			WillReturnRows(prRows)
+
+		stats, err := repo.GetAssignmentStats(ctx)
+		assert.NoError(t, err)
+		assert.NotNil(t, stats)
+
+		// Verify user stats
+		assert.Len(t, stats.ByUser, 3)
+		assert.Equal(t, domain.UserID("user1"), stats.ByUser[0].UserID)
+		assert.Equal(t, 10, stats.ByUser[0].Assignments)
+		assert.Equal(t, domain.UserID("user2"), stats.ByUser[1].UserID)
+		assert.Equal(t, 5, stats.ByUser[1].Assignments)
+		assert.Equal(t, domain.UserID("user3"), stats.ByUser[2].UserID)
+		assert.Equal(t, 3, stats.ByUser[2].Assignments)
+
+		// Verify PR stats
+		assert.Len(t, stats.ByPR, 3)
+		assert.Equal(t, domain.PRID("pr-1001"), stats.ByPR[0].PullRequestID)
+		assert.Equal(t, 2, stats.ByPR[0].Reviewers)
+		assert.Equal(t, domain.PRID("pr-1002"), stats.ByPR[1].PullRequestID)
+		assert.Equal(t, 1, stats.ByPR[1].Reviewers)
+		assert.Equal(t, domain.PRID("pr-1003"), stats.ByPR[2].PullRequestID)
+		assert.Equal(t, 2, stats.ByPR[2].Reviewers)
+
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("success - empty data", func(t *testing.T) {
+		// Mock empty user assignments query
+		userRows := sqlmock.NewRows([]string{"user_id", "assignments"})
+
+		mock.ExpectQuery("SELECT user_id, COUNT\\(\\*\\) as assignments FROM pr_reviewers GROUP BY user_id").
+			WillReturnRows(userRows)
+
+		// Mock empty PR reviewers query
+		prRows := sqlmock.NewRows([]string{"pull_request_id", "reviewers"})
+
+		mock.ExpectQuery("SELECT pull_request_id, COUNT\\(\\*\\) as reviewers FROM pr_reviewers GROUP BY pull_request_id").
+			WillReturnRows(prRows)
+
+		stats, err := repo.GetAssignmentStats(ctx)
+		assert.NoError(t, err)
+		assert.NotNil(t, stats)
+		assert.Len(t, stats.ByUser, 0)
+		assert.Len(t, stats.ByPR, 0)
+
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("error - user query fails", func(t *testing.T) {
+		mock.ExpectQuery("SELECT user_id, COUNT\\(\\*\\) as assignments FROM pr_reviewers GROUP BY user_id").
+			WillReturnError(sql.ErrConnDone)
+
+		stats, err := repo.GetAssignmentStats(ctx)
+		assert.Error(t, err)
+		assert.Nil(t, stats)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("error - pr query fails", func(t *testing.T) {
+		// Mock successful user assignments query
+		userRows := sqlmock.NewRows([]string{"user_id", "assignments"}).
+			AddRow("user1", 10)
+
+		mock.ExpectQuery("SELECT user_id, COUNT\\(\\*\\) as assignments FROM pr_reviewers GROUP BY user_id").
+			WillReturnRows(userRows)
+
+		// Mock failed PR reviewers query
+		mock.ExpectQuery("SELECT pull_request_id, COUNT\\(\\*\\) as reviewers FROM pr_reviewers GROUP BY pull_request_id").
+			WillReturnError(sql.ErrConnDone)
+
+		stats, err := repo.GetAssignmentStats(ctx)
+		assert.Error(t, err)
+		assert.Nil(t, stats)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("error - user scan fails", func(t *testing.T) {
+		// Mock user assignments query with wrong column type
+		userRows := sqlmock.NewRows([]string{"user_id", "assignments"}).
+			AddRow("user1", "invalid") // string instead of int
+
+		mock.ExpectQuery("SELECT user_id, COUNT\\(\\*\\) as assignments FROM pr_reviewers GROUP BY user_id").
+			WillReturnRows(userRows)
+
+		stats, err := repo.GetAssignmentStats(ctx)
+		assert.Error(t, err)
+		assert.Nil(t, stats)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("error - pr scan fails", func(t *testing.T) {
+		// Mock successful user assignments query
+		userRows := sqlmock.NewRows([]string{"user_id", "assignments"}).
+			AddRow("user1", 10)
+
+		mock.ExpectQuery("SELECT user_id, COUNT\\(\\*\\) as assignments FROM pr_reviewers GROUP BY user_id").
+			WillReturnRows(userRows)
+
+		// Mock PR reviewers query with wrong column type
+		prRows := sqlmock.NewRows([]string{"pull_request_id", "reviewers"}).
+			AddRow("pr-1001", "invalid") // string instead of int
+
+		mock.ExpectQuery("SELECT pull_request_id, COUNT\\(\\*\\) as reviewers FROM pr_reviewers GROUP BY pull_request_id").
+			WillReturnRows(prRows)
+
+		stats, err := repo.GetAssignmentStats(ctx)
+		assert.Error(t, err)
+		assert.Nil(t, stats)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}

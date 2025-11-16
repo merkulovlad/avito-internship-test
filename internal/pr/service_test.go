@@ -82,6 +82,15 @@ func (m *MockPRRepository) GetReviewers(ctx context.Context, pullRequestId domai
 	return args.Get(0).([]domain.UserID), args.Error(1)
 }
 
+func (m *MockPRRepository) GetAssignmentStats(ctx context.Context) (*domain.Stats, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+
+	return args.Get(0).(*domain.Stats), args.Error(1)
+}
+
 type MockUserRepository struct {
 	mock.Mock
 }
@@ -715,5 +724,112 @@ func TestPRService_PickReviewers(t *testing.T) {
 		candidates := []domain.UserID{"user1", "user2"}
 		result := service.pickReviewers(candidates, 2)
 		assert.Len(t, result, 2)
+	})
+}
+
+func TestPRService_GetAssignmentStats(t *testing.T) {
+	t.Run("success - with stats", func(t *testing.T) {
+		mockPRRepo := new(MockPRRepository)
+		mockUserRepo := new(MockUserRepository)
+		mockLogger := &logger.FakeLogger{}
+
+		service := &PRService{
+			prRepo:    mockPRRepo,
+			userRepo:  mockUserRepo,
+			txManager: func() *tx.Manager { m, _, _ := newTestTxManager(true); return m }(),
+			logger:    mockLogger,
+		}
+
+		ctx := context.Background()
+
+		expectedStats := &domain.Stats{
+			ByUser: []domain.UserAssignmentStat{
+				{UserID: "user1", Assignments: 10},
+				{UserID: "user2", Assignments: 5},
+				{UserID: "user3", Assignments: 3},
+			},
+			ByPR: []domain.PRReviewerStat{
+				{PullRequestID: "pr-1001", Reviewers: 2},
+				{PullRequestID: "pr-1002", Reviewers: 1},
+				{PullRequestID: "pr-1003", Reviewers: 2},
+			},
+		}
+
+		mockPRRepo.On("GetAssignmentStats", ctx).Return(expectedStats, nil)
+
+		stats, err := service.GetAssignmentStats(ctx)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, stats)
+		assert.Equal(t, expectedStats, stats)
+
+		// Verify user stats
+		assert.Len(t, stats.ByUser, 3)
+		assert.Equal(t, domain.UserID("user1"), stats.ByUser[0].UserID)
+		assert.Equal(t, 10, stats.ByUser[0].Assignments)
+		assert.Equal(t, domain.UserID("user2"), stats.ByUser[1].UserID)
+		assert.Equal(t, 5, stats.ByUser[1].Assignments)
+
+		// Verify PR stats
+		assert.Len(t, stats.ByPR, 3)
+		assert.Equal(t, domain.PRID("pr-1001"), stats.ByPR[0].PullRequestID)
+		assert.Equal(t, 2, stats.ByPR[0].Reviewers)
+
+		mockPRRepo.AssertExpectations(t)
+	})
+
+	t.Run("success - empty stats", func(t *testing.T) {
+		mockPRRepo := new(MockPRRepository)
+		mockUserRepo := new(MockUserRepository)
+		mockLogger := &logger.FakeLogger{}
+
+		service := &PRService{
+			prRepo:    mockPRRepo,
+			userRepo:  mockUserRepo,
+			txManager: func() *tx.Manager { m, _, _ := newTestTxManager(true); return m }(),
+			logger:    mockLogger,
+		}
+
+		ctx := context.Background()
+
+		expectedStats := &domain.Stats{
+			ByUser: []domain.UserAssignmentStat{},
+			ByPR:   []domain.PRReviewerStat{},
+		}
+
+		mockPRRepo.On("GetAssignmentStats", ctx).Return(expectedStats, nil)
+
+		stats, err := service.GetAssignmentStats(ctx)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, stats)
+		assert.Len(t, stats.ByUser, 0)
+		assert.Len(t, stats.ByPR, 0)
+
+		mockPRRepo.AssertExpectations(t)
+	})
+
+	t.Run("error - repository fails", func(t *testing.T) {
+		mockPRRepo := new(MockPRRepository)
+		mockUserRepo := new(MockUserRepository)
+		mockLogger := &logger.FakeLogger{}
+
+		service := &PRService{
+			prRepo:    mockPRRepo,
+			userRepo:  mockUserRepo,
+			txManager: func() *tx.Manager { m, _, _ := newTestTxManager(true); return m }(),
+			logger:    mockLogger,
+		}
+
+		ctx := context.Background()
+
+		mockPRRepo.On("GetAssignmentStats", ctx).Return(nil, assert.AnError)
+
+		stats, err := service.GetAssignmentStats(ctx)
+
+		assert.Error(t, err)
+		assert.Nil(t, stats)
+
+		mockPRRepo.AssertExpectations(t)
 	})
 }

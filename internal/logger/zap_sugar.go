@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// Logger wraps zap.SugaredLogger to implement InterfaceLogger.
 type Logger struct {
 	sugar  *zap.SugaredLogger
 	logger *zap.Logger
@@ -14,6 +15,7 @@ type Logger struct {
 
 var _ InterfaceLogger = (*Logger)(nil)
 
+// NewLogger creates a new Logger instance with the given options.
 func NewLogger(opts *Options) (*Logger, error) {
 	if err := os.MkdirAll("logs", 0o750); err != nil {
 		return nil, err

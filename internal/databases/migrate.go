@@ -16,7 +16,7 @@ const (
 	migrationDir = "migrations"
 )
 
-// RunMigrations applies database migrations using goose
+// RunMigrations applies database migrations using goose.
 func RunMigrations(db *sql.DB) error {
 	goose.SetBaseFS(migrationsFS)
 

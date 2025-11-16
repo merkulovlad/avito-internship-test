@@ -9,11 +9,13 @@ import (
 	"github.com/merkulovlad/avito-internship-test/internal/logger"
 )
 
+// TeamHandler handles team-related HTTP requests.
 type TeamHandler struct {
 	service domain.TeamServiceInterface
 	logger  logger.InterfaceLogger
 }
 
+// NewTeamHandler creates a new TeamHandler instance.
 func NewTeamHandler(service domain.TeamServiceInterface, logger logger.InterfaceLogger) *TeamHandler {
 	return &TeamHandler{
 		service: service,
@@ -21,6 +23,7 @@ func NewTeamHandler(service domain.TeamServiceInterface, logger logger.Interface
 	}
 }
 
+// CreateTeam handles the team creation endpoint.
 func (h *TeamHandler) CreateTeam(c *fiber.Ctx) error {
 	var req api.PostTeamAddJSONRequestBody
 	if err := c.BodyParser(&req); err != nil {
@@ -28,8 +31,6 @@ func (h *TeamHandler) CreateTeam(c *fiber.Ctx) error {
 		return writeError(c, fiber.StatusBadRequest, ErrorBadRequest, "Invalid request body")
 	}
 
-	h.logger.Infof("getting request to create team %s", req.TeamName)
-	// Validate team name is not empty
 	if req.TeamName == "" {
 		h.logger.Errorf("team_name is required and cannot be empty")
 		return writeError(c, fiber.StatusBadRequest, ErrorBadRequest, "team_name is required and cannot be empty")
@@ -86,11 +87,11 @@ func (h *TeamHandler) CreateTeam(c *fiber.Ctx) error {
 			Members:  membersCurrent,
 		},
 	}
-	h.logger.Infof("Created team %s with %d members", res.TeamName, len(res.Members))
 
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
 
+// GetTeam handles the team retrieval endpoint.
 func (h *TeamHandler) GetTeam(c *fiber.Ctx) error {
 	teamName := c.Query("team_name")
 	h.logger.Infof("getting request to get team %s", teamName)
@@ -128,7 +129,6 @@ func (h *TeamHandler) GetTeam(c *fiber.Ctx) error {
 		TeamName: string(team.Name),
 		Members:  apiMembers,
 	}
-	h.logger.Infof("Retrieved team %s with %d members", res.TeamName, len(res.Members))
 
 	return c.Status(fiber.StatusOK).JSON(res)
 }

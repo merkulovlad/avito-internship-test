@@ -5,6 +5,7 @@ import (
 	"github.com/merkulovlad/avito-internship-test/internal/domain"
 )
 
+// UserToApi converts a domain User to an API User.
 func UserToApi(u *domain.User) *api.User {
 	return &api.User{
 		UserId:   string(u.ID),

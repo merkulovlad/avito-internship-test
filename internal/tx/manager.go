@@ -8,14 +8,18 @@ import (
 
 var _ ManagerInterface = (*Manager)(nil)
 
+// Manager handles database transaction management.
 type Manager struct {
 	db *sql.DB
 }
 
+// NewManager creates a new Manager instance.
 func NewManager(db *sql.DB) *Manager {
 	return &Manager{db: db}
 }
 
+// Do executes a function within a database transaction.
+// If the function returns an error, the transaction is rolled back.
 func (m *Manager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
 	if _, ok := TxFromContext(ctx); ok {
 		return fn(ctx)

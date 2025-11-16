@@ -6,6 +6,7 @@ import (
 	"github.com/merkulovlad/avito-internship-test/internal/domain"
 )
 
+// BoolToStatus converts a boolean merge status to an API status type.
 func BoolToStatus(isMerged bool) api.PullRequestShortStatus {
 	if isMerged {
 		return api.PullRequestShortStatusMERGED
@@ -14,6 +15,7 @@ func BoolToStatus(isMerged bool) api.PullRequestShortStatus {
 	return api.PullRequestShortStatusOPEN
 }
 
+// writeError writes an error response to the client.
 func writeError(c *fiber.Ctx, status int, code api.ErrorResponseErrorCode, msg string) error {
 	resp := api.ErrorResponse{}
 	resp.Error.Code = code
@@ -22,6 +24,7 @@ func writeError(c *fiber.Ctx, status int, code api.ErrorResponseErrorCode, msg s
 	return c.Status(status).JSON(resp)
 }
 
+// PullRequestDomainToApi converts a domain PullRequest to an API PR.
 func PullRequestDomainToApi(pr *domain.PullRequest, reviewers []domain.User) *PR {
 	var mergedAt *string
 
@@ -48,6 +51,7 @@ func PullRequestDomainToApi(pr *domain.PullRequest, reviewers []domain.User) *PR
 	}
 }
 
+// sliceOfUsersToStr converts a slice of users to a slice of user ID strings.
 func sliceOfUsersToStr(users []domain.User) []string {
 	var ids []string
 	for _, r := range users {

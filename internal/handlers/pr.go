@@ -9,11 +9,13 @@ import (
 	"github.com/merkulovlad/avito-internship-test/internal/logger"
 )
 
+// PRHandler handles pull request-related HTTP requests.
 type PRHandler struct {
 	service domain.PRServiceInterface
 	logger  logger.InterfaceLogger
 }
 
+// NewPRHandler creates a new PRHandler instance.
 func NewPRHandler(service domain.PRServiceInterface, logger logger.InterfaceLogger) *PRHandler {
 	return &PRHandler{
 		service: service,
@@ -21,6 +23,7 @@ func NewPRHandler(service domain.PRServiceInterface, logger logger.InterfaceLogg
 	}
 }
 
+// ReassignReviewer handles the pull request reviewer reassignment endpoint.
 func (h *PRHandler) ReassignReviewer(c *fiber.Ctx) error {
 	var req api.PostPullRequestReassignJSONBody
 	if err := c.BodyParser(&req); err != nil {
@@ -93,11 +96,11 @@ func (h *PRHandler) ReassignReviewer(c *fiber.Ctx) error {
 		},
 		ReplacedBy: string(updatedPR.ReplacedBy),
 	}
-	h.logger.Infof("Reassigned reviewer for PR %s: old reviewer %s replaced by %s", res.PR.PullRequestId, req.OldUserId, res.ReplacedBy)
 
 	return c.Status(fiber.StatusOK).JSON(res)
 }
 
+// MergePr handles the pull request merge endpoint.
 func (h *PRHandler) MergePr(c *fiber.Ctx) error {
 	var req api.PostPullRequestMergeJSONBody
 	if err := c.BodyParser(&req); err != nil {
@@ -132,6 +135,7 @@ func (h *PRHandler) MergePr(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(res)
 }
 
+// CreatePr handles the pull request creation endpoint.
 func (h *PRHandler) CreatePr(c *fiber.Ctx) error {
 	var req api.PostPullRequestCreateJSONBody
 	if err := c.BodyParser(&req); err != nil {
@@ -170,7 +174,39 @@ func (h *PRHandler) CreatePr(c *fiber.Ctx) error {
 	res := PostPullRequestCreateResponse{
 		PR: *PullRequestDomainToApi(pr, reviewers),
 	}
-	h.logger.Infof("Created PR %s by author %s with name %s", res.PullRequestId, req.AuthorId, req.PullRequestName)
 
 	return c.Status(fiber.StatusCreated).JSON(res)
+}
+
+// GetStats handles the assignment statistics endpoint.
+func (h *PRHandler) GetStats(c *fiber.Ctx) error {
+	stats, err := h.service.GetAssignmentStats(c.Context())
+	if err != nil {
+		h.logger.Errorf("Internal server error: %v", err)
+		return writeError(c, fiber.StatusInternalServerError, ErrorCodeInternal, "internal server error")
+	}
+
+	// Convert domain stats to API response
+	byUser := make([]UserAssignmentStat, len(stats.ByUser))
+	for i, stat := range stats.ByUser {
+		byUser[i] = UserAssignmentStat{
+			UserID:      string(stat.UserID),
+			Assignments: stat.Assignments,
+		}
+	}
+
+	byPR := make([]PRReviewerStat, len(stats.ByPR))
+	for i, stat := range stats.ByPR {
+		byPR[i] = PRReviewerStat{
+			PullRequestID: string(stat.PullRequestID),
+			Reviewers:     stat.Reviewers,
+		}
+	}
+
+	res := GetStatsAssignmentsResponse{
+		ByUser: byUser,
+		ByPR:   byPR,
+	}
+
+	return c.Status(fiber.StatusOK).JSON(res)
 }

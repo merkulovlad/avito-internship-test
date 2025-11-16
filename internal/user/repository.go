@@ -1,3 +1,4 @@
+// Package user implements user management business logic.
 package user
 
 import (
@@ -12,17 +13,19 @@ import (
 // Compile-time interface check
 var _ domain.UserRepositoryInterface = (*UserRepository)(nil)
 
-// UserRepository provides methods to manage users
+// UserRepository provides database operations for users.
 type UserRepository struct {
 	exec *tx.ExecutorImpl
 }
 
+// NewUserRepository creates a new UserRepository instance.
 func NewUserRepository(db *sql.DB) *UserRepository {
 	return &UserRepository{
 		exec: tx.NewExecutor(db),
 	}
 }
 
+// Upsert creates or updates a user in the database.
 func (r *UserRepository) Upsert(ctx context.Context, u *domain.User) error {
 	executor := r.exec.DefaultTxOrDB(ctx)
 
@@ -43,6 +46,7 @@ func (r *UserRepository) Upsert(ctx context.Context, u *domain.User) error {
 	return err
 }
 
+// SetUserIsActive updates the active status of a user.
 func (r *UserRepository) SetUserIsActive(ctx context.Context, userId domain.UserID, isActive bool) (*domain.User, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	row := executor.QueryRowContext(ctx, "UPDATE users SET is_active = $1 WHERE user_id = $2 RETURNING user_id, username, team_name, is_active", isActive, userId)
@@ -55,6 +59,7 @@ func (r *UserRepository) SetUserIsActive(ctx context.Context, userId domain.User
 	return &u, nil
 }
 
+// GetActiveUsersByTeam retrieves all active user IDs for a given team.
 func (r *UserRepository) GetActiveUsersByTeam(ctx context.Context, teamName domain.TeamName) ([]domain.UserID, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 
@@ -92,6 +97,7 @@ func (r *UserRepository) GetActiveUsersByTeam(ctx context.Context, teamName doma
 	return userIDs, nil
 }
 
+// Exists checks if a user with the given ID exists in the database.
 func (r *UserRepository) Exists(ctx context.Context, userId domain.UserID) (bool, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	row := executor.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE user_id = $1)", userId)
@@ -104,6 +110,7 @@ func (r *UserRepository) Exists(ctx context.Context, userId domain.UserID) (bool
 	return exists, nil
 }
 
+// GetUserByID retrieves a user by their ID from the database.
 func (r *UserRepository) GetUserByID(ctx context.Context, userId domain.UserID) (*domain.User, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	row := executor.QueryRowContext(ctx, "SELECT user_id, username, team_name, is_active FROM users WHERE user_id = $1", userId)
@@ -120,6 +127,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, userId domain.UserID) 
 	return &u, nil
 }
 
+// GetUsersByIDs retrieves multiple users by their IDs from the database.
 func (r *UserRepository) GetUsersByIDs(ctx context.Context, userIds []domain.UserID) ([]domain.User, error) {
 	if len(userIds) == 0 {
 		return []domain.User{}, nil
@@ -165,6 +173,7 @@ func (r *UserRepository) GetUsersByIDs(ctx context.Context, userIds []domain.Use
 	return users, nil
 }
 
+// GetUsersByTeamName retrieves all users belonging to a team from the database.
 func (r *UserRepository) GetUsersByTeamName(ctx context.Context, teamName domain.TeamName) ([]domain.User, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 

@@ -1,3 +1,4 @@
+// Package pr implements pull request management business logic.
 package pr
 
 import (
@@ -11,16 +12,19 @@ import (
 // Compile-time interface check
 var _ domain.PullRequestRepositoryInterface = (*PRRepository)(nil)
 
+// PRRepository provides database operations for pull requests.
 type PRRepository struct {
 	exec *tx.ExecutorImpl
 }
 
+// NewPRRepository creates a new PRRepository instance.
 func NewPRRepository(db *sql.DB) *PRRepository {
 	return &PRRepository{
 		exec: tx.NewExecutor(db),
 	}
 }
 
+// CreatePr inserts a new pull request into the database.
 func (r *PRRepository) CreatePr(ctx context.Context, pullRequestId domain.PRID, authorId domain.UserID, title string) error {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	_, err := executor.ExecContext(ctx, "INSERT INTO pull_requests (pull_request_id, author_id, title, created_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP)", pullRequestId, authorId, title)
@@ -28,6 +32,7 @@ func (r *PRRepository) CreatePr(ctx context.Context, pullRequestId domain.PRID, 
 	return err
 }
 
+// AssignReviewer assigns a reviewer to a pull request.
 func (r *PRRepository) AssignReviewer(ctx context.Context, pullRequestId domain.PRID, reviewer domain.UserID) error {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	_, err := executor.ExecContext(ctx,
@@ -40,6 +45,7 @@ func (r *PRRepository) AssignReviewer(ctx context.Context, pullRequestId domain.
 	return err
 }
 
+// MergePr marks a pull request as merged in the database.
 func (r *PRRepository) MergePr(ctx context.Context, pullRequestId domain.PRID) (*domain.PullRequest, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 
@@ -96,6 +102,7 @@ func (r *PRRepository) MergePr(ctx context.Context, pullRequestId domain.PRID) (
 	return &pr, nil
 }
 
+// Exists checks if a pull request with the given ID exists in the database.
 func (r *PRRepository) Exists(ctx context.Context, pullRequestId domain.PRID) (bool, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	row := executor.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM pull_requests WHERE pull_request_id = $1)", pullRequestId)
@@ -108,6 +115,7 @@ func (r *PRRepository) Exists(ctx context.Context, pullRequestId domain.PRID) (b
 	return exists, nil
 }
 
+// CheckIsMerged checks if a pull request is merged.
 func (r *PRRepository) CheckIsMerged(ctx context.Context, pullRequestId domain.PRID) (bool, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	row := executor.QueryRowContext(ctx, "SELECT is_merged FROM pull_requests WHERE pull_request_id = $1", pullRequestId)
@@ -120,6 +128,7 @@ func (r *PRRepository) CheckIsMerged(ctx context.Context, pullRequestId domain.P
 	return isMerged, nil
 }
 
+// IsReviewerAssigned checks if a reviewer is assigned to a pull request.
 func (r *PRRepository) IsReviewerAssigned(ctx context.Context, pullRequestId domain.PRID, reviewId domain.UserID) (bool, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	row := executor.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM pr_reviewers WHERE pull_request_id = $1 AND user_id = $2)", pullRequestId, reviewId)
@@ -132,6 +141,7 @@ func (r *PRRepository) IsReviewerAssigned(ctx context.Context, pullRequestId dom
 	return isAssigned, nil
 }
 
+// UnassignReviewer removes a reviewer from a pull request.
 func (r *PRRepository) UnassignReviewer(ctx context.Context, pullRequestId domain.PRID, reviewerId domain.UserID) error {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	_, err := executor.ExecContext(ctx, "DELETE FROM pr_reviewers WHERE pull_request_id = $1 AND user_id = $2", pullRequestId, reviewerId)
@@ -139,6 +149,7 @@ func (r *PRRepository) UnassignReviewer(ctx context.Context, pullRequestId domai
 	return err
 }
 
+// GetPrByPrID retrieves a pull request by its ID from the database.
 func (r *PRRepository) GetPrByPrID(ctx context.Context, pullRequestId domain.PRID) (*domain.PullRequest, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	row := executor.QueryRowContext(ctx, "SELECT pull_request_id, author_id, title, created_at, is_merged, merged_at FROM pull_requests WHERE pull_request_id = $1", pullRequestId)
@@ -151,6 +162,7 @@ func (r *PRRepository) GetPrByPrID(ctx context.Context, pullRequestId domain.PRI
 	return &pr, nil
 }
 
+// GetPrByUserID retrieves all pull requests assigned to a user from the database.
 func (r *PRRepository) GetPrByUserID(ctx context.Context, userId domain.UserID) ([]domain.PullRequest, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 
@@ -187,6 +199,7 @@ func (r *PRRepository) GetPrByUserID(ctx context.Context, userId domain.UserID) 
 	return prs, nil
 }
 
+// GetReviewers retrieves all reviewer IDs for a pull request from the database.
 func (r *PRRepository) GetReviewers(ctx context.Context, pullRequestId domain.PRID) ([]domain.UserID, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 
@@ -220,4 +233,78 @@ func (r *PRRepository) GetReviewers(ctx context.Context, pullRequestId domain.PR
 	}
 
 	return reviewerIDs, nil
+}
+
+// GetAssignmentStats retrieves statistics about reviewer assignments from the database.
+func (r *PRRepository) GetAssignmentStats(ctx context.Context) (*domain.Stats, error) {
+	executor := r.exec.DefaultTxOrDB(ctx)
+
+	// Get assignments per user
+	userRows, err := executor.QueryContext(ctx, `
+		SELECT user_id, COUNT(*) as assignments
+		FROM pr_reviewers
+		GROUP BY user_id
+		ORDER BY assignments DESC, user_id ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if closeErr := userRows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+
+	var byUser []domain.UserAssignmentStat
+
+	for userRows.Next() {
+		var stat domain.UserAssignmentStat
+		if err := userRows.Scan(&stat.UserID, &stat.Assignments); err != nil {
+			return nil, err
+		}
+
+		byUser = append(byUser, stat)
+	}
+
+	if err := userRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Get reviewers per PR
+	prRows, err := executor.QueryContext(ctx, `
+		SELECT pull_request_id, COUNT(*) as reviewers
+		FROM pr_reviewers
+		GROUP BY pull_request_id
+		ORDER BY reviewers DESC, pull_request_id ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if closeErr := prRows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+
+	var byPR []domain.PRReviewerStat
+
+	for prRows.Next() {
+		var stat domain.PRReviewerStat
+		if err := prRows.Scan(&stat.PullRequestID, &stat.Reviewers); err != nil {
+			return nil, err
+		}
+
+		byPR = append(byPR, stat)
+	}
+
+	if err := prRows.Err(); err != nil {
+		return nil, err
+	}
+
+	return &domain.Stats{
+		ByUser: byUser,
+		ByPR:   byPR,
+	}, nil
 }

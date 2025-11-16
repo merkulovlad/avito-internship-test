@@ -1,5 +1,6 @@
 package logger
 
+// InterfaceLogger defines the logging interface used throughout the application.
 type InterfaceLogger interface {
 	Info(args ...interface{})
 	Infof(template string, args ...interface{})

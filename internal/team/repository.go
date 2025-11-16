@@ -1,3 +1,4 @@
+// Package team implements team management business logic.
 package team
 
 import (
@@ -11,16 +12,19 @@ import (
 // Compile-time interface check
 var _ domain.TeamRepositoryInterface = (*TeamRepository)(nil)
 
+// TeamRepository provides database operations for teams.
 type TeamRepository struct {
 	exec *tx.ExecutorImpl
 }
 
+// NewTeamRepository creates a new TeamRepository instance.
 func NewTeamRepository(db *sql.DB) *TeamRepository {
 	return &TeamRepository{
 		exec: tx.NewExecutor(db),
 	}
 }
 
+// CreateTeam inserts a new team into the database.
 func (r *TeamRepository) CreateTeam(ctx context.Context, t domain.TeamName) error {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	_, err := executor.ExecContext(ctx, "INSERT INTO teams (team_name) VALUES ($1)", t)
@@ -28,6 +32,7 @@ func (r *TeamRepository) CreateTeam(ctx context.Context, t domain.TeamName) erro
 	return err
 }
 
+// GetTeamByName retrieves a team by its name from the database.
 func (r *TeamRepository) GetTeamByName(ctx context.Context, name domain.TeamName) (*domain.Team, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	row := executor.QueryRowContext(ctx, "SELECT team_name FROM teams WHERE team_name = $1", name)
@@ -44,6 +49,7 @@ func (r *TeamRepository) GetTeamByName(ctx context.Context, name domain.TeamName
 	return &t, nil
 }
 
+// Exists checks if a team with the given name exists in the database.
 func (r *TeamRepository) Exists(ctx context.Context, name domain.TeamName) (bool, error) {
 	executor := r.exec.DefaultTxOrDB(ctx)
 	row := executor.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM teams WHERE team_name = $1)", name)

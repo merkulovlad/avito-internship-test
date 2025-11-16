@@ -5,12 +5,12 @@ import (
 	"database/sql"
 )
 
-// ExecutorImpl wrapper that provides access to transaction or database
+// ExecutorImpl provides access to transaction or database.
 type ExecutorImpl struct {
 	db *sql.DB
 }
 
-// NewExecutor creates a new ExecutorImpl instance
+// NewExecutor creates a new ExecutorImpl instance.
 func NewExecutor(db *sql.DB) *ExecutorImpl {
 	return &ExecutorImpl{db: db}
 }

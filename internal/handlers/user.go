@@ -9,11 +9,13 @@ import (
 	"github.com/merkulovlad/avito-internship-test/internal/logger"
 )
 
+// UserHandler handles user-related HTTP requests.
 type UserHandler struct {
 	service domain.UserServiceInterface
 	logger  logger.InterfaceLogger
 }
 
+// NewUserHandler creates a new UserHandler instance.
 func NewUserHandler(service domain.UserServiceInterface, logger logger.InterfaceLogger) *UserHandler {
 	return &UserHandler{
 		service: service,
@@ -21,6 +23,7 @@ func NewUserHandler(service domain.UserServiceInterface, logger logger.Interface
 	}
 }
 
+// SetUserIsActive handles the user active status update endpoint.
 func (h *UserHandler) SetUserIsActive(c *fiber.Ctx) error {
 	var req api.PostUsersSetIsActiveJSONBody
 
@@ -29,9 +32,6 @@ func (h *UserHandler) SetUserIsActive(c *fiber.Ctx) error {
 		return writeError(c, fiber.StatusBadRequest, ErrorBadRequest, "Invalid request body")
 	}
 
-	h.logger.Infof("getting request to set is_active=%v for user %s", req.IsActive, req.UserId)
-
-	// Validate user_id is not empty
 	if req.UserId == "" {
 		h.logger.Errorf("user_id is required and cannot be empty")
 		return writeError(c, fiber.StatusBadRequest, ErrorBadRequest, "user_id is required and cannot be empty")
@@ -58,11 +58,10 @@ func (h *UserHandler) SetUserIsActive(c *fiber.Ctx) error {
 		},
 	}
 
-	h.logger.Infof("set is_active=%v for user %s successfully", req.IsActive, req.UserId)
-
 	return c.Status(fiber.StatusOK).JSON(res)
 }
 
+// GetPrOfUser handles the user pull requests retrieval endpoint.
 func (h *UserHandler) GetPrOfUser(c *fiber.Ctx) error {
 	userId := c.Query("user_id")
 	if userId == "" {
@@ -95,8 +94,6 @@ func (h *UserHandler) GetPrOfUser(c *fiber.Ctx) error {
 		"user_id":       userId,
 		"pull_requests": pullRequests,
 	}
-
-	h.logger.Infof("retrieved %d pull requests for user %s", len(pullRequests), userId)
 
 	return c.Status(fiber.StatusOK).JSON(res)
 }

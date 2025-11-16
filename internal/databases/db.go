@@ -1,3 +1,4 @@
+// Package databases provides database connection functionality. Also includes migration helpers.
 package databases
 
 import (
@@ -8,8 +9,10 @@ import (
 	"github.com/merkulovlad/avito-internship-test/internal/config"
 )
 
+// DRIVER is the database driver name.
 const DRIVER = "postgres"
 
+// NewDB creates and returns a new database connection pool.
 func NewDB(cfg *config.DatabaseConfig) (*sql.DB, error) {
 	dsn := cfg.DSN()
 

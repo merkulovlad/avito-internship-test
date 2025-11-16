@@ -18,6 +18,7 @@ type fakePRService struct {
 	prToReturn        *domain.PullRequest
 	reviewersToReturn []domain.User
 	reassignToReturn  *domain.ReassignResult
+	statsToReturn     *domain.Stats
 	errToReturn       error
 	lastPRID          domain.PRID
 	lastAuthorID      domain.UserID
@@ -64,6 +65,14 @@ func (f *fakePRService) GetReviewers(ctx context.Context, pullRequestId domain.P
 	}
 
 	return f.reviewersToReturn, nil
+}
+
+func (f *fakePRService) GetAssignmentStats(ctx context.Context) (*domain.Stats, error) {
+	if f.errToReturn != nil {
+		return nil, f.errToReturn
+	}
+
+	return f.statsToReturn, nil
 }
 
 func TestPRHandler_CreatePr_Success(t *testing.T) {
@@ -709,5 +718,222 @@ func TestPRHandler_ReassignReviewer_InvalidJSON(t *testing.T) {
 
 	if resp.StatusCode != fiber.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestPRHandler_GetStats_Success(t *testing.T) {
+	app := fiber.New()
+	log := &logger.FakeLogger{}
+
+	svc := &fakePRService{
+		statsToReturn: &domain.Stats{
+			ByUser: []domain.UserAssignmentStat{
+				{UserID: "user1", Assignments: 10},
+				{UserID: "user2", Assignments: 5},
+				{UserID: "user3", Assignments: 3},
+			},
+			ByPR: []domain.PRReviewerStat{
+				{PullRequestID: "pr-1001", Reviewers: 2},
+				{PullRequestID: "pr-1002", Reviewers: 1},
+				{PullRequestID: "pr-1003", Reviewers: 2},
+			},
+		},
+	}
+	h := NewPRHandler(svc, log)
+
+	app.Get("/stats/assignments", h.GetStats)
+
+	req := httptest.NewRequest("GET", "/stats/assignments", nil)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+
+	var got GetStatsAssignmentsResponse
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	// Verify user stats
+	if len(got.ByUser) != 3 {
+		t.Fatalf("expected 3 user stats, got %d", len(got.ByUser))
+	}
+
+	if got.ByUser[0].UserID != "user1" {
+		t.Fatalf("expected user1, got %s", got.ByUser[0].UserID)
+	}
+
+	if got.ByUser[0].Assignments != 10 {
+		t.Fatalf("expected 10 assignments, got %d", got.ByUser[0].Assignments)
+	}
+
+	if got.ByUser[1].UserID != "user2" {
+		t.Fatalf("expected user2, got %s", got.ByUser[1].UserID)
+	}
+
+	if got.ByUser[1].Assignments != 5 {
+		t.Fatalf("expected 5 assignments, got %d", got.ByUser[1].Assignments)
+	}
+
+	// Verify PR stats
+	if len(got.ByPR) != 3 {
+		t.Fatalf("expected 3 PR stats, got %d", len(got.ByPR))
+	}
+
+	if got.ByPR[0].PullRequestID != "pr-1001" {
+		t.Fatalf("expected pr-1001, got %s", got.ByPR[0].PullRequestID)
+	}
+
+	if got.ByPR[0].Reviewers != 2 {
+		t.Fatalf("expected 2 reviewers, got %d", got.ByPR[0].Reviewers)
+	}
+
+	if got.ByPR[1].PullRequestID != "pr-1002" {
+		t.Fatalf("expected pr-1002, got %s", got.ByPR[1].PullRequestID)
+	}
+
+	if got.ByPR[1].Reviewers != 1 {
+		t.Fatalf("expected 1 reviewer, got %d", got.ByPR[1].Reviewers)
+	}
+}
+
+func TestPRHandler_GetStats_EmptyStats(t *testing.T) {
+	app := fiber.New()
+	log := &logger.FakeLogger{}
+
+	svc := &fakePRService{
+		statsToReturn: &domain.Stats{
+			ByUser: []domain.UserAssignmentStat{},
+			ByPR:   []domain.PRReviewerStat{},
+		},
+	}
+	h := NewPRHandler(svc, log)
+
+	app.Get("/stats/assignments", h.GetStats)
+
+	req := httptest.NewRequest("GET", "/stats/assignments", nil)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+
+	var got GetStatsAssignmentsResponse
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(got.ByUser) != 0 {
+		t.Fatalf("expected 0 user stats, got %d", len(got.ByUser))
+	}
+
+	if len(got.ByPR) != 0 {
+		t.Fatalf("expected 0 PR stats, got %d", len(got.ByPR))
+	}
+}
+
+func TestPRHandler_GetStats_ServiceError(t *testing.T) {
+	app := fiber.New()
+	log := &logger.FakeLogger{}
+
+	svc := &fakePRService{
+		errToReturn: domain.ErrNotFound,
+	}
+	h := NewPRHandler(svc, log)
+
+	app.Get("/stats/assignments", h.GetStats)
+
+	req := httptest.NewRequest("GET", "/stats/assignments", nil)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+
+	if resp.StatusCode != fiber.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	errorObj, ok := got["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected error object in response")
+	}
+
+	if errorObj["code"] != string(ErrorCodeInternal) {
+		t.Fatalf("expected error code %s, got %v", ErrorCodeInternal, errorObj["code"])
+	}
+}
+
+func TestPRHandler_GetStats_NilStats(t *testing.T) {
+	app := fiber.New()
+	log := &logger.FakeLogger{}
+
+	svc := &fakePRService{
+		statsToReturn: &domain.Stats{
+			ByUser: nil,
+			ByPR:   nil,
+		},
+	}
+	h := NewPRHandler(svc, log)
+
+	app.Get("/stats/assignments", h.GetStats)
+
+	req := httptest.NewRequest("GET", "/stats/assignments", nil)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+
+	var got GetStatsAssignmentsResponse
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	// Nil slices should be converted to empty slices in JSON
+	if got.ByUser == nil {
+		t.Fatalf("expected non-nil ByUser slice")
+	}
+
+	if got.ByPR == nil {
+		t.Fatalf("expected non-nil ByPR slice")
 	}
 }

@@ -1,3 +1,4 @@
+// Package team implements team management business logic.
 package team
 
 import (
@@ -14,7 +15,6 @@ import (
 var _ domain.TeamServiceInterface = (*TeamService)(nil)
 
 // TeamService provides methods to manage teams and their members.
-
 type TeamService struct {
 	teamRepository domain.TeamRepositoryInterface
 	userRepository domain.UserRepositoryInterface
@@ -22,6 +22,7 @@ type TeamService struct {
 	logger         logger.InterfaceLogger
 }
 
+// NewTeamService creates a new TeamService instance.
 func NewTeamService(db *sql.DB, logger logger.InterfaceLogger) *TeamService {
 	return &TeamService{
 		teamRepository: NewTeamRepository(db),
@@ -31,10 +32,9 @@ func NewTeamService(db *sql.DB, logger logger.InterfaceLogger) *TeamService {
 	}
 }
 
+// CreateTeam creates a new team with the given members.
 func (s *TeamService) CreateTeam(ctx context.Context, t domain.TeamName, members []domain.User) (*domain.Team, error) {
 	var res *domain.Team
-
-	s.logger.Infof("Creating team %s", t)
 
 	err := s.txManager.Do(ctx, func(txCtx context.Context) error {
 		exists, err := s.teamRepository.Exists(txCtx, t)
@@ -62,7 +62,6 @@ func (s *TeamService) CreateTeam(ctx context.Context, t domain.TeamName, members
 			}
 		}
 
-		s.logger.Infof("Team %s created successfully", t)
 		res = &domain.Team{
 			Name: t,
 		}
@@ -76,14 +75,13 @@ func (s *TeamService) CreateTeam(ctx context.Context, t domain.TeamName, members
 	return res, nil
 }
 
+// GetTeamByName retrieves a team by its name.
 func (s *TeamService) GetTeamByName(ctx context.Context, name domain.TeamName) (*domain.Team, error) {
-	s.logger.Infof("Getting team by name %s", name)
 	return s.teamRepository.GetTeamByName(ctx, name)
 }
 
+// GetTeamMembers retrieves all members of a team.
 func (s *TeamService) GetTeamMembers(ctx context.Context, teamName string) ([]domain.User, error) {
-	s.logger.Infof("Getting members of team %s", teamName)
-	// Check if team exists first
 	exists, err := s.teamRepository.Exists(ctx, domain.TeamName(teamName))
 	if err != nil {
 		s.logger.Errorf("Failed to check existence of team %s: %v", teamName, err)
@@ -94,8 +92,6 @@ func (s *TeamService) GetTeamMembers(ctx context.Context, teamName string) ([]do
 		s.logger.Errorf("Team %s not found", teamName)
 		return nil, domain.ErrNotFound
 	}
-
-	s.logger.Infof("Team %s exists, fetching members", teamName)
 
 	return s.userRepository.GetUsersByTeamName(ctx, domain.TeamName(teamName))
 }

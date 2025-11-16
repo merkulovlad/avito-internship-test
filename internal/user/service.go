@@ -1,3 +1,4 @@
+// Package user implements user management business logic.
 package user
 
 import (
@@ -21,6 +22,7 @@ type UserService struct {
 	logger         logger.InterfaceLogger
 }
 
+// NewUserService creates a new UserService instance.
 func NewUserService(db *sql.DB, prRepository domain.PullRequestRepositoryInterface, logger logger.InterfaceLogger) *UserService {
 	return &UserService{
 		userRepository: NewUserRepository(db),
@@ -30,9 +32,8 @@ func NewUserService(db *sql.DB, prRepository domain.PullRequestRepositoryInterfa
 	}
 }
 
+// SetIsActive updates the active status of a user.
 func (s *UserService) SetIsActive(ctx context.Context, id domain.UserID, isActive bool) (*domain.User, error) {
-	s.logger.Infof("Setting is_active=%v for user %s", isActive, id)
-
 	users, err := s.userRepository.SetUserIsActive(ctx, id, isActive)
 	if err != nil {
 		s.logger.Errorf("Failed to set is_active=%v for user %s: %v", isActive, id, err)
@@ -44,26 +45,20 @@ func (s *UserService) SetIsActive(ctx context.Context, id domain.UserID, isActiv
 		return nil, err
 	}
 
-	s.logger.Infof("Set is_active=%v for user %s successfully", isActive, id)
-
 	return users, nil
 }
 
+// GetPrOfUser retrieves all pull requests assigned to a user.
 func (s *UserService) GetPrOfUser(ctx context.Context, userId domain.UserID) ([]domain.PullRequest, error) {
-	// Check if user exists first
 	exists, err := s.userRepository.Exists(ctx, userId)
 	if err != nil {
 		s.logger.Errorf("Failed to check existence of user %s: %v", userId, err)
 		return nil, err
 	}
 
-	s.logger.Infof("Checking existence of user %s", userId)
-
 	if !exists {
 		return nil, domain.ErrNotFound
 	}
-
-	s.logger.Infof("User %s exists", userId)
 
 	return s.prRepository.GetPrByUserID(ctx, userId)
 }

@@ -1,3 +1,4 @@
+// Package main implements the entry point for the application.
 package main
 
 import (
@@ -23,6 +24,7 @@ import (
 	"github.com/merkulovlad/avito-internship-test/internal/user"
 )
 
+// createFiberApp initializes and configures the Fiber application.
 func createFiberApp(log logger.InterfaceLogger) *fiber.App {
 	return fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -38,9 +40,11 @@ func createFiberApp(log logger.InterfaceLogger) *fiber.App {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,
-		BodyLimit:    4 * 1024 * 1024, // 4MB
+		BodyLimit:    4 * 1024 * 1024,
 	})
 }
+
+// setupServices initializes the services with their respective repositories.
 
 func setupServices(db *sql.DB, log logger.InterfaceLogger) (
 	*user.UserService,
@@ -55,6 +59,7 @@ func setupServices(db *sql.DB, log logger.InterfaceLogger) (
 	return userService, teamService, prService
 }
 
+// runServer starts the Fiber server and handles graceful shutdown.
 func runServer(app *fiber.App, addr string, log logger.InterfaceLogger) {
 	log.Infof("Starting server on %s", addr)
 
@@ -74,6 +79,7 @@ func runServer(app *fiber.App, addr string, log logger.InterfaceLogger) {
 	}
 }
 
+// entry point of the application.
 func main() {
 	cfg := config.MustLoad()
 	options := &logger.Options{

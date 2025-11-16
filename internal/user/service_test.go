@@ -83,6 +83,15 @@ func (m *MockPRRepository) GetReviewers(ctx context.Context, pullRequestId domai
 	return args.Get(0).([]domain.UserID), args.Error(1)
 }
 
+func (m *MockPRRepository) GetAssignmentStats(ctx context.Context) (*domain.Stats, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+
+	return args.Get(0).(*domain.Stats), args.Error(1)
+}
+
 // Mock User Repository (reuse from team tests or define here)
 type MockUserRepository struct {
 	mock.Mock

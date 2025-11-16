@@ -1,3 +1,4 @@
+// Package config provides configuration loading and management.
 package config
 
 import (
@@ -9,23 +10,27 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Config holds the application configuration.
 type Config struct {
 	Server   ServerConfig
 	Log      LogConfig
 	Database DatabaseConfig
 }
 
+// ServerConfig contains server-related configuration.
 type ServerConfig struct {
 	Host string
 	Port int
 }
 
+// LogConfig contains logging configuration.
 type LogConfig struct {
 	Filename  string
 	Level     string
 	ToConsole bool
 }
 
+// DatabaseConfig contains database connection configuration.
 type DatabaseConfig struct {
 	Host              string
 	Port              int
@@ -38,6 +43,8 @@ type DatabaseConfig struct {
 	ConnMaxLifetime   int
 }
 
+// mustGetEnv retrieves the value of the environment variable named by the key.
+// It panics if the variable is not set.
 func mustGetEnv(key string) string {
 	v := os.Getenv(key)
 	if v == "" {
@@ -47,6 +54,8 @@ func mustGetEnv(key string) string {
 	return v
 }
 
+// mustGetEnvBool retrieves a boolean environment variable.
+// It panics if the variable is not set or cannot be parsed.
 func mustGetEnvBool(key string) bool {
 	s := mustGetEnv(key)
 
@@ -58,6 +67,8 @@ func mustGetEnvBool(key string) bool {
 	return b
 }
 
+// mustGetEnvInt retrieves an integer environment variable.
+// It panics if the variable is not set or cannot be parsed.
 func mustGetEnvInt(key string) int {
 	s := mustGetEnv(key)
 
@@ -69,6 +80,7 @@ func mustGetEnvInt(key string) int {
 	return i
 }
 
+// MustLoad loads the configuration from environment variables.
 func MustLoad() *Config {
 	// ignore error if there's no .env in CI/etc
 	_ = godotenv.Load()
@@ -97,6 +109,7 @@ func MustLoad() *Config {
 	}
 }
 
+// DSN constructs the Data Source Name for database connection.
 func (c *DatabaseConfig) DSN() string {
 	return fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
